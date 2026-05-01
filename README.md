@@ -25,6 +25,8 @@ This project is designed as a clean starting point for:
 - `src/winvision_macro/web_control.py`: local browser control panel
 - `src/winvision_macro/main.py`: CLI entrypoint
 - `configs/default.json`: sample automation config
+- `templates/README.md`: template crop guidance and placeholder folder
+- `models/README.md`: YOLO model placement guidance and placeholder folder
 - `run-windows.bat`: start the browser dashboard
 - `run-cli-windows.bat`: start the CLI loop directly
 - `setup-windows.bat`: virtualenv and dependency installer
