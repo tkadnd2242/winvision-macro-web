@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winvision-macro"
+version = "0.1.0"
+description = "Windows desktop vision automation scaffold using Python, OpenCV, and pyautogui"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python",
+    "numpy",
+    "pillow",
+    "pyautogui",
+]
+
+[project.optional-dependencies]
+yolo = [
+    "ultralytics",
+]
+
+[project.scripts]
+winvision-macro = "winvision_macro.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
