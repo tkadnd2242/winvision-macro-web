@@ -2,5 +2,9 @@
 __pycache__/
 *.pyc
 debug/
-models/
-templates/
+models/*
+!models/README.md
+!models/.gitkeep
+templates/*
+!templates/README.md
+!templates/.gitkeep
