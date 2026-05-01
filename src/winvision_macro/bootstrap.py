@@ -59,9 +59,10 @@ def build_runtime_stack(
     yolo_model_path: str | None = None,
     yolo_confidence_threshold: float | None = None,
     yolo_labels: list[str] | None = None,
+    frame_image_path: str | None = None,
 ) -> tuple[AppConfig, VisionMacroRunner, PyAutoGuiInputController]:
     from winvision_macro.actions import PyAutoGuiInputController
-    from winvision_macro.capture import PyAutoGuiFrameSource
+    from winvision_macro.capture import ImageFileFrameSource, PyAutoGuiFrameSource
     from winvision_macro.runtime import VisionMacroRunner
     from winvision_macro.vision import build_detector
 
@@ -74,7 +75,10 @@ def build_runtime_stack(
         yolo_model_path=yolo_model_path,
         yolo_confidence_threshold=yolo_confidence_threshold,
     )
-    frame_source = PyAutoGuiFrameSource(config.capture_region)
+    if frame_image_path is not None and frame_image_path.strip():
+        frame_source = ImageFileFrameSource(frame_image_path.strip())
+    else:
+        frame_source = PyAutoGuiFrameSource(config.capture_region)
     detector = build_detector(config, yolo_labels=yolo_labels)
     controller = PyAutoGuiInputController(dry_run=config.runtime.dry_run)
     runner = VisionMacroRunner(

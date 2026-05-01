@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,16 @@ class ScreenRegion:
 class ActionConfig:
     type: str
     key: str | None = None
+    keys: list[str] = field(default_factory=list)
+    text: str | None = None
+    button: str = "left"
+    repeat: int = 1
+    interval_seconds: float = 0.0
+    duration_seconds: float = 0.0
+    offset_x: int = 0
+    offset_y: int = 0
+    scroll_amount: int = 0
+    post_delay_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -30,6 +40,11 @@ class TemplateConfig:
     threshold: float = 0.9
     cooldown_seconds: float = 0.0
     action: ActionConfig = field(default_factory=lambda: ActionConfig(type="click_center"))
+    actions: list[ActionConfig] = field(default_factory=list)
+    priority: int = 0
+
+    def resolved_actions(self) -> list[ActionConfig]:
+        return list(self.actions) if self.actions else [self.action]
 
 
 @dataclass(frozen=True)
@@ -50,6 +65,11 @@ class YoloTargetConfig:
     min_confidence: float = 0.5
     cooldown_seconds: float = 0.0
     action: ActionConfig = field(default_factory=lambda: ActionConfig(type="click_center"))
+    actions: list[ActionConfig] = field(default_factory=list)
+    priority: int = 0
+
+    def resolved_actions(self) -> list[ActionConfig]:
+        return list(self.actions) if self.actions else [self.action]
 
 
 @dataclass(frozen=True)
@@ -90,7 +110,9 @@ class AppConfig:
                     label=item["label"],
                     min_confidence=item.get("min_confidence", 0.5),
                     cooldown_seconds=item.get("cooldown_seconds", 0.0),
-                    action=ActionConfig(**item.get("action", {"type": "click_center"})),
+                    action=_primary_action_from_dict(item),
+                    actions=_actions_from_dict(item),
+                    priority=item.get("priority", 0),
                 )
                 for item in yolo_raw.get("targets", [])
             ],
@@ -102,7 +124,9 @@ class AppConfig:
                 path=item["path"],
                 threshold=item.get("threshold", 0.9),
                 cooldown_seconds=item.get("cooldown_seconds", 0.0),
-                action=ActionConfig(**item.get("action", {"type": "click_center"})),
+                action=_primary_action_from_dict(item),
+                actions=_actions_from_dict(item),
+                priority=item.get("priority", 0),
             )
             for item in raw.get("templates", [])
         ]
@@ -141,10 +165,9 @@ class AppConfig:
                         "label": item.label,
                         "min_confidence": item.min_confidence,
                         "cooldown_seconds": item.cooldown_seconds,
-                        "action": {
-                            "type": item.action.type,
-                            "key": item.action.key,
-                        },
+                        "priority": item.priority,
+                        "action": _action_to_dict(item.action),
+                        **({"actions": [_action_to_dict(action) for action in item.actions]} if len(item.actions) > 1 else {}),
                     }
                     for item in self.yolo.targets
                 ],
@@ -155,14 +178,98 @@ class AppConfig:
                     "path": item.path,
                     "threshold": item.threshold,
                     "cooldown_seconds": item.cooldown_seconds,
-                    "action": {
-                        "type": item.action.type,
-                        "key": item.action.key,
-                    },
+                    "priority": item.priority,
+                    "action": _action_to_dict(item.action),
+                    **({"actions": [_action_to_dict(action) for action in item.actions]} if len(item.actions) > 1 else {}),
                 }
                 for item in self.templates
             ],
         }
+
+
+def _action_from_dict(raw: dict[str, Any]) -> ActionConfig:
+    return ActionConfig(
+        type=raw["type"],
+        key=raw.get("key"),
+        keys=list(raw.get("keys", [])),
+        text=raw.get("text"),
+        button=raw.get("button", "left"),
+        repeat=raw.get("repeat", 1),
+        interval_seconds=raw.get("interval_seconds", 0.0),
+        duration_seconds=raw.get("duration_seconds", 0.0),
+        offset_x=raw.get("offset_x", 0),
+        offset_y=raw.get("offset_y", 0),
+        scroll_amount=raw.get("scroll_amount", 0),
+        post_delay_seconds=raw.get("post_delay_seconds", 0.0),
+    )
+
+
+def _actions_from_dict(raw: dict[str, Any]) -> list[ActionConfig]:
+    action_items = raw.get("actions")
+    if isinstance(action_items, list) and action_items:
+        return [_action_from_dict(item) for item in action_items]
+    return []
+
+
+def _primary_action_from_dict(raw: dict[str, Any]) -> ActionConfig:
+    actions = _actions_from_dict(raw)
+    if actions:
+        return actions[0]
+    return _action_from_dict(raw.get("action", {"type": "click_center"}))
+
+
+def _action_to_dict(action: ActionConfig) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": action.type,
+        "button": action.button,
+        "repeat": action.repeat,
+        "interval_seconds": action.interval_seconds,
+        "duration_seconds": action.duration_seconds,
+        "offset_x": action.offset_x,
+        "offset_y": action.offset_y,
+        "scroll_amount": action.scroll_amount,
+        "post_delay_seconds": action.post_delay_seconds,
+    }
+    if action.key is not None:
+        payload["key"] = action.key
+    if action.keys:
+        payload["keys"] = list(action.keys)
+    if action.text is not None:
+        payload["text"] = action.text
+    return payload
+
+
+def save_config(path: str | Path, config: AppConfig) -> Path:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
+    return destination
+
+
+def update_capture_region(path: str | Path, region: ScreenRegion) -> AppConfig:
+    config = AppConfig.load(path)
+    next_config = replace(config, capture_region=region)
+    save_config(path, next_config)
+    return next_config
+
+
+def upsert_template(path: str | Path, template: TemplateConfig) -> AppConfig:
+    config = AppConfig.load(path)
+    templates: list[TemplateConfig] = []
+    replaced = False
+    for item in config.templates:
+        if item.name == template.name:
+            templates.append(template)
+            replaced = True
+        else:
+            templates.append(item)
+
+    if not replaced:
+        templates.append(template)
+
+    next_config = replace(config, templates=templates)
+    save_config(path, next_config)
+    return next_config
 
 
 def write_sample_config(path: str | Path) -> Path:
@@ -181,18 +288,25 @@ def write_sample_config(path: str | Path) -> Path:
                     min_confidence=0.55,
                     cooldown_seconds=0.3,
                     action=ActionConfig(type="click_center"),
+                    priority=5,
                 ),
                 YoloTargetConfig(
                     label="confirm",
                     min_confidence=0.7,
                     cooldown_seconds=0.8,
-                    action=ActionConfig(type="double_click_center"),
+                    action=ActionConfig(type="move_center", duration_seconds=0.05),
+                    actions=[
+                        ActionConfig(type="move_center", duration_seconds=0.05),
+                        ActionConfig(type="double_click_center", post_delay_seconds=0.1),
+                    ],
+                    priority=30,
                 ),
                 YoloTargetConfig(
                     label="skill_ready",
                     min_confidence=0.65,
                     cooldown_seconds=1.2,
                     action=ActionConfig(type="press_key", key="1"),
+                    priority=20,
                 ),
             ],
         ),
@@ -203,13 +317,19 @@ def write_sample_config(path: str | Path) -> Path:
                 threshold=0.92,
                 cooldown_seconds=0.75,
                 action=ActionConfig(type="click_center"),
+                priority=5,
             ),
             TemplateConfig(
                 name="confirm_button",
                 path="templates/confirm_button.png",
                 threshold=0.94,
                 cooldown_seconds=1.0,
-                action=ActionConfig(type="double_click_center"),
+                action=ActionConfig(type="move_center", duration_seconds=0.05),
+                actions=[
+                    ActionConfig(type="move_center", duration_seconds=0.05),
+                    ActionConfig(type="double_click_center", post_delay_seconds=0.1),
+                ],
+                priority=30,
             ),
             TemplateConfig(
                 name="skill_ready",
@@ -217,10 +337,9 @@ def write_sample_config(path: str | Path) -> Path:
                 threshold=0.90,
                 cooldown_seconds=2.0,
                 action=ActionConfig(type="press_key", key="1"),
+                priority=20,
             ),
         ],
     )
     destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
-    return destination
+    return save_config(destination, config)

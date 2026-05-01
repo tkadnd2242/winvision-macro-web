@@ -27,6 +27,16 @@ class MatchBox:
 class ActionSpec:
     type: str
     key: str | None = None
+    keys: tuple[str, ...] = ()
+    text: str | None = None
+    button: str = "left"
+    repeat: int = 1
+    interval_seconds: float = 0.0
+    duration_seconds: float = 0.0
+    offset_x: int = 0
+    offset_y: int = 0
+    scroll_amount: int = 0
+    post_delay_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -34,8 +44,13 @@ class Detection:
     name: str
     score: float
     box: MatchBox
-    action: ActionSpec
+    actions: tuple[ActionSpec, ...]
     cooldown_seconds: float = 0.0
+    priority: int = 0
+
+    @property
+    def action(self) -> ActionSpec:
+        return self.actions[0]
 
 
 class FrameSource(Protocol):

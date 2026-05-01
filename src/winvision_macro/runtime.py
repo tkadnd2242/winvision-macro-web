@@ -57,7 +57,8 @@ class VisionMacroRunner:
 
     def _pick_executable_detection(self, detections: list[Detection]) -> Detection | None:
         now = time.time()
-        for item in detections:
+        ranked = sorted(detections, key=lambda item: (item.priority, item.score), reverse=True)
+        for item in ranked:
             if self._cooldowns.get(item.name, 0.0) <= now:
                 return item
         return None

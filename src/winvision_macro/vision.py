@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from winvision_macro.config import AppConfig, ScreenRegion, TemplateConfig, YoloConfig
+from winvision_macro.config import ActionConfig, AppConfig, ScreenRegion, TemplateConfig, YoloConfig
 from winvision_macro.interfaces import ActionSpec, Detection, MatchBox
 
 
@@ -50,12 +50,13 @@ class TemplateMatchDetector:
                     name=item.name,
                     score=score,
                     box=MatchBox(left=left, top=top, width=width, height=height),
-                    action=ActionSpec(type=item.action.type, key=item.action.key),
+                    actions=_build_action_specs(item.resolved_actions()),
                     cooldown_seconds=item.cooldown_seconds,
+                    priority=item.priority,
                 )
             )
 
-        results.sort(key=lambda item: item.score, reverse=True)
+        results.sort(key=lambda item: (item.priority, item.score), reverse=True)
         return results
 
     def _load_template(self, path: str) -> np.ndarray:
@@ -136,15 +137,15 @@ class YoloDetector:
                         width=width,
                         height=height,
                     ),
-                    action=ActionSpec(
-                        type=action.type if action is not None else "click_center",
-                        key=action.key if action is not None else None,
+                    actions=_build_action_specs(
+                        target.resolved_actions() if target is not None else [ActionConfig(type="click_center")]
                     ),
                     cooldown_seconds=cooldown,
+                    priority=target.priority if target is not None else 0,
                 )
             )
 
-        detections.sort(key=lambda item: item.score, reverse=True)
+        detections.sort(key=lambda item: (item.priority, item.score), reverse=True)
         return detections
 
 
@@ -164,3 +165,23 @@ def build_detector(config: AppConfig, yolo_labels: list[str] | None = None):
             label_filter=label_filter,
         )
     raise RuntimeError(f"Unsupported detector backend: {config.detector.backend}")
+
+
+def _build_action_specs(actions: list[ActionConfig]) -> tuple[ActionSpec, ...]:
+    return tuple(
+        ActionSpec(
+            type=item.type,
+            key=item.key,
+            keys=tuple(item.keys),
+            text=item.text,
+            button=item.button,
+            repeat=item.repeat,
+            interval_seconds=item.interval_seconds,
+            duration_seconds=item.duration_seconds,
+            offset_x=item.offset_x,
+            offset_y=item.offset_y,
+            scroll_amount=item.scroll_amount,
+            post_delay_seconds=item.post_delay_seconds,
+        )
+        for item in actions
+    )

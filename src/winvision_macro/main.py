@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from winvision_macro.bootstrap import build_runtime_stack
-from winvision_macro.config import write_sample_config
+from winvision_macro.config import AppConfig, write_sample_config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,15 +40,64 @@ def build_parser() -> argparse.ArgumentParser:
         "--yolo-labels",
         help="Comma-separated YOLO labels to allow at runtime.",
     )
+    parser.add_argument(
+        "--frame-image",
+        help="Optional image or .npy frame file to use instead of live screen capture.",
+    )
+    parser.add_argument(
+        "--interval-seconds",
+        type=float,
+        help="Override the loop interval from the config.",
+    )
+    parser.add_argument(
+        "--max-loops",
+        type=int,
+        help="Override the max loop count from the config. Use 0 for infinite.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Force dry-run mode for safe macro testing.",
+    )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Force live input mode and send real mouse or keyboard events.",
+    )
+    parser.add_argument(
+        "--print-config-summary",
+        action="store_true",
+        help="Print the resolved config summary and exit.",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
 
+    if args.dry_run and args.live:
+        raise SystemExit("Choose either --dry-run or --live, not both.")
+
     if args.write_sample_config:
         path = write_sample_config(Path(args.config))
         print(f"wrote sample config to {path}")
+        return
+
+    if args.print_config_summary:
+        config = AppConfig.load(args.config)
+        summary = {
+            "capture_region": config.capture_region.as_tuple(),
+            "runtime": {
+                "interval_seconds": config.runtime.interval_seconds,
+                "dry_run": config.runtime.dry_run,
+                "max_loops": config.runtime.max_loops,
+            },
+            "detector_backend": config.detector.backend,
+            "template_count": len(config.templates),
+            "yolo_target_count": len(config.yolo.targets),
+            "frame_image": args.frame_image,
+        }
+        print(json.dumps(summary, indent=2))
         return
 
     if args.mode == "web":
@@ -61,15 +111,17 @@ def main() -> None:
         return
 
     yolo_labels = [item.strip() for item in args.yolo_labels.split(",")] if args.yolo_labels else None
+    dry_run_override = True if args.dry_run else False if args.live else None
     config, runner, controller = build_runtime_stack(
         config_path=args.config,
-        dry_run=None,
-        interval_seconds=None,
-        max_loops=None,
+        dry_run=dry_run_override,
+        interval_seconds=args.interval_seconds,
+        max_loops=args.max_loops,
         detector_backend=args.detector_backend,
         yolo_model_path=args.yolo_model_path,
         yolo_confidence_threshold=args.yolo_confidence,
         yolo_labels=yolo_labels,
+        frame_image_path=args.frame_image,
     )
 
     if args.once:
