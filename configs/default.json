@@ -1,0 +1,79 @@
+{
+  "capture_region": {
+    "left": 0,
+    "top": 0,
+    "width": 1280,
+    "height": 720
+  },
+  "runtime": {
+    "interval_seconds": 0.35,
+    "dry_run": true,
+    "max_loops": 200
+  },
+  "detector": {
+    "backend": "template"
+  },
+  "yolo": {
+    "model_path": "models/best.pt",
+    "confidence_threshold": 0.5,
+    "iou_threshold": 0.45,
+    "device": null,
+    "targets": [
+      {
+        "label": "enemy",
+        "min_confidence": 0.55,
+        "cooldown_seconds": 0.3,
+        "action": {
+          "type": "click_center"
+        }
+      },
+      {
+        "label": "confirm",
+        "min_confidence": 0.7,
+        "cooldown_seconds": 0.8,
+        "action": {
+          "type": "double_click_center"
+        }
+      },
+      {
+        "label": "skill_ready",
+        "min_confidence": 0.65,
+        "cooldown_seconds": 1.2,
+        "action": {
+          "type": "press_key",
+          "key": "1"
+        }
+      }
+    ]
+  },
+  "templates": [
+    {
+      "name": "target_button",
+      "path": "templates/target_button.png",
+      "threshold": 0.92,
+      "cooldown_seconds": 0.75,
+      "action": {
+        "type": "click_center"
+      }
+    },
+    {
+      "name": "confirm_button",
+      "path": "templates/confirm_button.png",
+      "threshold": 0.94,
+      "cooldown_seconds": 1.0,
+      "action": {
+        "type": "double_click_center"
+      }
+    },
+    {
+      "name": "skill_ready",
+      "path": "templates/skill_ready.png",
+      "threshold": 0.90,
+      "cooldown_seconds": 2.0,
+      "action": {
+        "type": "press_key",
+        "key": "1"
+      }
+    }
+  ]
+}
